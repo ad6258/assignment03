@@ -83,7 +83,8 @@ class Packet:
         
         return header + self.data
     
-    def deserialize(self, cls, raw_data):
+    @classmethod
+    def deserialize(cls, raw_data):
         """
         Create packet from raw bytes
         
@@ -150,28 +151,32 @@ class Packet:
         return self.__str__()
 
 
-def create_data_packet(type, seq_num, data, window_size=5):
+# Helper functions for creating specific packet types
+def create_data_packet(seq_num, data, window_size=5):
     """Create a DATA packet"""
-    return Packet(seq_num=seq_num, flags=PacketType.DATA, 
+    return Packet(seq_num=seq_num, ack_num=0, flags=PacketType.DATA, 
                  window_size=window_size, data=data)
 
 def create_ack_packet(ack_num, window_size=5):
     """Create an ACK packet"""
-    return Packet(ack_num=ack_num, flags=PacketType.ACK, 
-                 window_size=window_size)
+    return Packet(seq_num=0, ack_num=ack_num, flags=PacketType.ACK, 
+                 window_size=window_size, data=b'')
 
 def create_syn_packet(seq_num=0):
     """Create a SYN packet for connection establishment"""
-    return Packet(seq_num=seq_num, flags=PacketType.SYN)
+    return Packet(seq_num=seq_num, ack_num=0, flags=PacketType.SYN, 
+                 window_size=0, data=b'')
 
 def create_fin_packet(seq_num):
     """Create a FIN packet for connection termination"""
-    return Packet(seq_num=seq_num, flags=PacketType.FIN)
+    return Packet(seq_num=seq_num, ack_num=0, flags=PacketType.FIN, 
+                 window_size=0, data=b'')
 
 def create_syn_ack_packet(seq_num, ack_num):
     """Create a SYN-ACK packet"""
     return Packet(seq_num=seq_num, ack_num=ack_num, 
-                 flags=PacketType.SYN | PacketType.ACK)
+                 flags=PacketType.SYN | PacketType.ACK, 
+                 window_size=0, data=b'')
 
 
 # Test the packet implementation
