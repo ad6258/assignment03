@@ -32,21 +32,21 @@ class FileServer:
     
     def start(self):
         """Start the server and listen for file transfers"""
-        print("[Server] Waiting for file transfers...\n")
+        print("[Server] Waiting for file transfers\n")
         
         try:
             while True:
                 # Wait for incoming connection
-                print("[Server] Ready to receive file...")
+                print("[Server] Ready to receive file")
                 
                 # Create RDT receiver for this transfer
                 receiver = RDTReceiver(self.sock, window_size=5)
                 receiver.start()
                 
-                # Receive file data
-                file_data = receiver.receive_all_data(timeout=30)
+                # Receive file data with longer timeout for high corruption/loss
+                file_data = receiver.receive_all_data(timeout=60)
                 
-                if file_data:
+                if file_data and len(file_data) > 0:
                     # Extract filename and content
                     # Protocol: first line is filename, rest is file content
                     try:
@@ -63,16 +63,18 @@ class FileServer:
                         with open(filepath, 'wb') as f:
                             f.write(content)
                         
-                        print(f"\n[Server] ✓ File received and saved: {filepath}")
+                        print(f"\n[Server] File received and saved: {filepath}")
                         print(f"[Server] File size: {len(content)} bytes\n")
                     
                     except Exception as e:
                         print(f"[Server] Error saving file: {e}")
+                else:
+                    print("[Server] No data received (timeout or empty transfer)\n")
                 
                 receiver.stop()
                 
         except KeyboardInterrupt:
-            print("\n[Server] Shutting down...")
+            print("\n[Server] Shutting down")
             self.sock.close()
 
 

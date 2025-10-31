@@ -61,7 +61,7 @@ class FileClient:
                 sock=self.sock,
                 dest_addr=self.server_addr,
                 window_size=5,
-                timeout=2.0,
+                timeout=5.0,
                 max_packet_size=1024
             )
             
@@ -80,7 +80,7 @@ class FileClient:
             # Calculate statistics
             throughput = len(data) / elapsed if elapsed > 0 else 0
             
-            print(f"\n[Client] ✓ File sent successfully!")
+            print(f"\n[Client] File sent successfully!")
             print(f"[Client] Time elapsed: {elapsed:.2f} seconds")
             print(f"[Client] Throughput: {throughput:.2f} bytes/sec ({throughput*8:.2f} bits/sec)")
             print(f"[Client] Packets sent: {sender.packets_sent}")

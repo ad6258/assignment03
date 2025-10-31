@@ -83,7 +83,7 @@ class RDTSender:
                 with self.lock:
                     if self.next_seq_num < self.base + self.window_size:
                         break
-                time.sleep(0.01)  # Small delay to avoid busy waiting
+                time.sleep(0.01)
             
             # Create and send packet
             packet = create_data_packet(self.next_seq_num, chunk, self.window_size)
@@ -93,8 +93,8 @@ class RDTSender:
                 self.send_buffer[self.next_seq_num] = (packet, time.time())
                 self.next_seq_num += 1
             
-            # Rate limiting (500 bits per second = ~62 bytes per second)
-            time.sleep(len(chunk) / 62.0)
+            # Very small delay to avoid flooding
+            time.sleep(0.01)
         
         # Wait for all ACKs
         print("[Sender] Waiting for all ACKs...")
@@ -232,7 +232,7 @@ class RDTReceiver:
         except queue.Empty:
             return None
     
-    def receive_all_data(self, timeout=10):
+    def receive_all_data(self, timeout=60):
         """
         Receive all data until timeout or connection closed
         
@@ -243,23 +243,39 @@ class RDTReceiver:
             bytes: All received data concatenated
         """
         all_data = b''
-        start_time = time.time()
-        no_data_count = 0
+        last_activity_time = time.time()  # Track ANY activity (not just delivery)
+        consecutive_empty_reads = 0
         
-        while time.time() - start_time < timeout:
+        while time.time() - last_activity_time < timeout:
+            # Check if any packets were received recently
+            with self.lock:
+                current_packets_received = self.packets_received
+            
             data = self.receive_data()
             if data:
                 all_data += data
-                no_data_count = 0
+                last_activity_time = time.time()
+                consecutive_empty_reads = 0
+                print(f"[Receiver] Accumulated {len(all_data)} bytes so far")
             else:
-                no_data_count += 1
-                # If no data for 2 seconds, assume transfer complete
-                if no_data_count > 20:
+                # Check if receiver thread is still receiving packets (even if not delivered)
+                with self.lock:
+                    if current_packets_received < self.packets_received:
+                        # Packets are still arriving, reset timer
+                        last_activity_time = time.time()
+                        consecutive_empty_reads = 0
+                    else:
+                        consecutive_empty_reads += 1
+                
+                # Only timeout if BOTH no data delivered AND no packets arriving
+                if consecutive_empty_reads > 200 and len(all_data) > 0:
+                    print(f"[Receiver] No activity for 20 seconds, transfer complete")
                     break
+            
             time.sleep(0.1)
         
         return all_data
-    
+        
     def _receive_packets(self):
         """Thread function to receive packets"""
         while self.running:
@@ -294,7 +310,9 @@ class RDTReceiver:
                 print(f"[Receiver] Duplicate packet seq={seq_num}")
                 self.duplicates_received += 1
                 # Send ACK anyway (might have been lost)
-                self._send_ack(self.expected_seq_num - 1, sender_addr)
+                # For duplicates, ACK the last successfully received packet
+                ack_num = max(0, self.expected_seq_num - 1)
+                self._send_ack(ack_num, sender_addr)
                 return
             
             # Store packet in buffer
@@ -308,19 +326,24 @@ class RDTReceiver:
                 print(f"[Receiver] Delivered packet seq={self.expected_seq_num} to application")
                 self.expected_seq_num += 1
             
-            # Send cumulative ACK
-            self._send_ack(self.expected_seq_num - 1, sender_addr)
+            # Send cumulative ACK for the last in-order packet received
+            # ACK number is the last packet successfully delivered
+            ack_num = max(0, self.expected_seq_num - 1)
+            self._send_ack(ack_num, sender_addr)
     
     def _send_ack(self, ack_num, dest_addr):
         """Send ACK packet"""
         try:
+            # Make sure ack_num is non-negative
+            if ack_num < 0:
+                ack_num = 0
+            
             ack_packet = create_ack_packet(ack_num, self.window_size)
             self.sock.sendto(ack_packet.serialize(), dest_addr)
             self.acks_sent += 1
             print(f"[Receiver] Sent ACK={ack_num}")
         except Exception as e:
             print(f"[Receiver] Error sending ACK: {e}")
-
 
 # Example usage and testing
 if __name__ == "__main__":
@@ -345,12 +368,12 @@ if __name__ == "__main__":
     
     # Send test data
     test_data = b"Hello, this is a test of the reliable data transfer protocol! " * 20
-    print(f"\nSending {len(test_data)} bytes...\n")
+    print(f"\nSending {len(test_data)} bytes \n")
     
     sender.send_data(test_data)
     
     # Receive data
-    print("\nReceiving data...\n")
+    print("\nReceiving data\n")
     time.sleep(2)  # Wait for all data
     received_data = receiver.receive_all_data(timeout=5)
     

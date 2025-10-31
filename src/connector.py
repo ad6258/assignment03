@@ -92,7 +92,7 @@ class NetworkConnector:
     
     def _forward_client_to_server(self):
         """Forward packets from client to server"""
-        print("[Connector] Listening for client packets...")
+        print("[Connector] Listening for client packets")
         
         while self.running:
             try:
@@ -188,7 +188,7 @@ class NetworkConnector:
         else:
             # Forward immediately
             self._send_packet(data, dest_addr, sock, direction, packet_info)
-            
+
     def _corrupt_packet(self, data):
         """Corrupt random bits in packet"""
         data_array = bytearray(data)
@@ -277,7 +277,7 @@ def main():
             time.sleep(1)
             
     except KeyboardInterrupt:
-        print("\n\nShutting down Connector...")
+        print("\n\nShutting down Connector")
         Connector.stop()
 
 
